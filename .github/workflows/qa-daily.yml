@@ -1,0 +1,74 @@
+name: QA Audit — Daily Smoke
+
+# Runs daily at 04:30 IST (23:00 UTC previous day)
+# IST = UTC+5:30
+on:
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-daily-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Daily smoke test — NBP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run homepage smoke tests
+        env:
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          CI: "true"
+        run: npx playwright test tests/nbp/homepage.spec.ts --reporter=list
+        continue-on-error: true
+
+      - name: Run SEO and marketing smoke audit
+        env:
+          TARGET_SITE: nbp
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          AUDIT_MAX_PAGES: "10"
+          CI: "true"
+        run: npx ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=smoke --site=nbp
+        continue-on-error: true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            audit-results/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Daily audit summary
+        if: always()
+        run: |
+          echo "## Daily Smoke Audit — $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Site: NBP" >> $GITHUB_STEP_SUMMARY

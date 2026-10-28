@@ -1,0 +1,84 @@
+name: QA Audit — Weekly Full
+
+# Runs every Sunday at 02:00 IST (Saturday 20:30 UTC)
+on:
+  schedule:
+    - cron: "30 20 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-audit:
+    name: Weekly full audit — NBP
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run full Playwright test suite
+        env:
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          CI: "true"
+        run: npx playwright test tests/nbp/ --reporter=html
+        continue-on-error: true
+
+      - name: Run SEO audit
+        env:
+          TARGET_SITE: nbp
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          AUDIT_MAX_PAGES: "50"
+          CI: "true"
+        run: npx ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=seo --site=nbp
+        continue-on-error: true
+
+      - name: Run marketing audit
+        env:
+          TARGET_SITE: nbp
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          CI: "true"
+        run: npx ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=marketing --site=nbp
+        continue-on-error: true
+
+      - name: Upload full audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-full-audit-${{ github.run_id }}
+          path: |
+            playwright-report/
+            audit-results/
+            test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Weekly audit summary
+        if: always()
+        run: |
+          echo "## Weekly Full Audit — $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "- Run ID: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Site: NBP" >> $GITHUB_STEP_SUMMARY
+          echo "- Scope: Functional, SEO, Marketing" >> $GITHUB_STEP_SUMMARY
