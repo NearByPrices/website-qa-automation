@@ -1,0 +1,55 @@
+{
+  "name": "website-qa-automation",
+  "version": "1.0.0",
+  "description": "Automated website QA, SEO, performance and marketing audit framework",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src tests scripts config --ext .ts",
+    "lint:fix": "eslint src tests scripts config --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,json,md,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md,yml}\"",
+    "test:unit": "jest --runInBand --testPathPattern='tests/framework'",
+    "qa:smoke": "playwright test tests/nbp/homepage.spec.ts --reporter=list",
+    "qa:functional": "playwright test tests/nbp/ --reporter=html",
+    "qa:seo": "ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=seo",
+    "qa:marketing": "ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=marketing",
+    "qa:performance": "ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=performance",
+    "qa:accessibility": "playwright test tests/nbp/ --grep @accessibility --reporter=html",
+    "qa:full": "ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=full",
+    "qa:report": "ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=report",
+    "validate:config": "ts-node -r tsconfig-paths/register scripts/validate-config.ts",
+    "playwright:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "axe-core": "^4.10.2",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.4.7",
+    "googleapis": "^144.0.0",
+    "lighthouse": "^12.4.0",
+    "uuid": "^11.0.3",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "^1.49.1",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@types/uuid": "^10.0.0",
+    "@types/xml2js": "^0.4.14",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.2"
+  }
+}
