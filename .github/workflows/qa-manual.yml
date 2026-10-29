@@ -1,0 +1,127 @@
+name: QA Audit — Manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_type:
+        description: "Audit type to run"
+        required: true
+        default: "smoke"
+        type: choice
+        options:
+          - smoke
+          - functional
+          - seo
+          - marketing
+          - performance
+          - accessibility
+          - full
+      site:
+        description: "Site configuration key"
+        required: true
+        default: "nbp"
+        type: choice
+        options:
+          - nbp
+      max_pages:
+        description: "Maximum pages to crawl (SEO/full audits)"
+        required: false
+        default: "20"
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    name: Run ${{ inputs.audit_type }} audit on ${{ inputs.site }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Validate configuration
+        env:
+          TARGET_SITE: ${{ inputs.site }}
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          AUDIT_MAX_PAGES: ${{ inputs.max_pages }}
+        run: npm run validate:config
+
+      - name: Run Playwright functional tests
+        if: inputs.audit_type == 'functional' || inputs.audit_type == 'smoke'
+        env:
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          CI: "true"
+        run: |
+          if [ "${{ inputs.audit_type }}" = "smoke" ]; then
+            npx playwright test tests/nbp/homepage.spec.ts --reporter=list
+          else
+            npx playwright test tests/nbp/ --reporter=html
+          fi
+        continue-on-error: true
+
+      - name: Run SEO / Marketing / Full audit
+        if: inputs.audit_type == 'seo' || inputs.audit_type == 'marketing' || inputs.audit_type == 'full'
+        env:
+          TARGET_SITE: ${{ inputs.site }}
+          NBP_BASE_URL: ${{ secrets.NBP_BASE_URL }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          AUDIT_MAX_PAGES: ${{ inputs.max_pages }}
+          CI: "true"
+        run: npx ts-node -r tsconfig-paths/register scripts/run-audit.ts --type=${{ inputs.audit_type }} --site=${{ inputs.site }}
+        continue-on-error: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ inputs.site }}-${{ inputs.audit_type }}-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-results-${{ inputs.site }}-${{ inputs.audit_type }}-${{ github.run_id }}
+          path: audit-results/
+          retention-days: 30
+
+      - name: Upload test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ inputs.site }}-${{ inputs.audit_type }}-${{ github.run_id }}
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Audit summary
+        if: always()
+        run: |
+          echo "## Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Site: ${{ inputs.site }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Type: ${{ inputs.audit_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: manual (workflow_dispatch)" >> $GITHUB_STEP_SUMMARY
+          echo "- Run: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          if [ -f audit-results/nbp-${{ inputs.audit_type }}-latest.json ]; then
+            echo "- Results: audit-results/nbp-${{ inputs.audit_type }}-latest.json" >> $GITHUB_STEP_SUMMARY
+          fi

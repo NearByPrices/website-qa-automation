@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Google service account credentials
+service-account*.json
+*-credentials.json
+gcp-key*.json
+
+# Playwright output
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Lighthouse reports
+lighthouse-reports/
+
+# Audit output
+audit-results/
+reports/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript incremental
+*.tsbuildinfo
